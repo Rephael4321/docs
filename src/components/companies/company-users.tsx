@@ -20,6 +20,14 @@ type KeyRow = {
   updated_at: string;
 } | null;
 
+type Company = {
+  id: number;
+  name: string;
+  callback_url: string | null;
+  jwt_alg: string;
+  token_ttl_seconds: number;
+};
+
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
     if (!r.ok) throw new Error("Failed");
@@ -28,14 +36,6 @@ const fetcher = (url: string) =>
 
 function enc(v: string | number) {
   return encodeURIComponent(String(v));
-}
-
-function getAppOrigin() {
-  if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_APP_ORIGIN) {
-    return process.env.NEXT_PUBLIC_APP_ORIGIN!;
-  }
-  if (typeof window !== "undefined") return window.location.origin;
-  return "";
 }
 
 function getErrorMessage(e: unknown, fallback = "Something went wrong") {
@@ -47,14 +47,35 @@ function getErrorMessage(e: unknown, fallback = "Something went wrong") {
   return fallback;
 }
 
+/** Derive the client entry proxy base from the company's callback_url */
+function deriveEntryProxyBase(callbackUrl: string | null): string {
+  if (!callbackUrl) throw new Error("Company callback_url is not set.");
+  try {
+    const u = new URL(callbackUrl);
+    // e.g. https://client-app.com
+    return u.origin;
+  } catch {
+    throw new Error("Invalid company callback_url.");
+  }
+}
+
 export default function CompanyUsers() {
   const { id } = useParams(); // companyId
   const companyId = String(id);
 
-  const { data, error, isLoading, mutate } = useSWR<User[]>(
-    `/api/companies/${companyId}/users`,
-    fetcher
-  );
+  const {
+    data: users,
+    error: usersError,
+    isLoading: usersLoading,
+    mutate,
+  } = useSWR<User[]>(`/api/companies/${companyId}/users`, fetcher);
+
+  // fetch company to read callback_url
+  const {
+    data: company,
+    error: companyError,
+    isLoading: companyLoading,
+  } = useSWR<Company>(`/api/companies/${companyId}`, fetcher);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -127,6 +148,7 @@ export default function CompanyUsers() {
     try {
       setBusyUserId(u.id);
 
+      // need the user's key
       const res = await fetch(`/api/users/${u.id}/key`);
       if (!res.ok) {
         throw new Error("Failed to fetch user key");
@@ -139,9 +161,13 @@ export default function CompanyUsers() {
         return;
       }
 
-      const origin = getAppOrigin();
+      // derive proxy base from company.callback_url
+      const entryProxyBase = deriveEntryProxyBase(
+        company?.callback_url ?? null
+      );
+
       const url =
-        `${origin}/api/auth/entry` +
+        `${entryProxyBase}/api/auth/entry` +
         `?company_id=${enc(companyId)}` +
         `&first_name=${enc(u.first_name)}` +
         `&last_name=${enc(u.last_name)}` +
@@ -193,7 +219,7 @@ export default function CompanyUsers() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm text-sm font-medium mb-1">
               Phone number
             </label>
             <input
@@ -238,15 +264,17 @@ export default function CompanyUsers() {
       {/* List */}
       <section className="space-y-3">
         <h2 className="font-semibold">Existing Users</h2>
-        {isLoading ? (
+        {usersLoading || companyLoading ? (
           <p className="text-gray-600">Loading...</p>
-        ) : error ? (
-          <p className="text-red-600">Failed to load users</p>
-        ) : !data || data.length === 0 ? (
+        ) : usersError || companyError ? (
+          <p className="text-red-600">
+            Failed to load {usersError ? "users" : "company"}.
+          </p>
+        ) : !users || users.length === 0 ? (
           <p className="text-gray-600">No users yet.</p>
         ) : (
           <ul className="divide-y border rounded bg-white">
-            {data.map((u) => (
+            {users.map((u) => (
               <li
                 key={u.id}
                 className="p-4 flex items-center justify-between gap-4 hover:bg-gray-50"
@@ -282,8 +310,9 @@ export default function CompanyUsers() {
       </section>
 
       <p className="text-xs text-gray-500">
-        The link includes first/last name, phone, and the user’s personal key.
-        It works even if a token is missing. You can also add{" "}
+        The link uses the company’s <code>callback_url</code> origin to build
+        the entry endpoint (<code>/api/auth/entry</code>) and includes the
+        user’s identifiers and personal key. You can also append{" "}
         <code>&token=...</code> later.
       </p>
     </div>
