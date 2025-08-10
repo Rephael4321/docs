@@ -41,6 +41,7 @@ export async function PUT(
   const newJwt =
     provided && provided.length > 0 ? provided : generateRandomToken();
 
+  // (Optional) size guard
   if (newJwt.length > 8192) {
     return NextResponse.json({ error: "Secret too large" }, { status: 400 });
   }
