@@ -8,9 +8,9 @@ function generateRandomToken(length = 48) {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Record<string, string> }
 ) {
-  const companyId = Number(params.id);
+  const companyId = Number(context.params.id);
   if (Number.isNaN(companyId)) {
     return NextResponse.json({ error: "Invalid companyId" }, { status: 400 });
   }
@@ -24,13 +24,14 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Record<string, string> }
 ) {
-  const companyId = Number(params.id);
+  const companyId = Number(context.params.id);
   if (Number.isNaN(companyId)) {
     return NextResponse.json({ error: "Invalid companyId" }, { status: 400 });
   }
 
+  // If client sends { jwt: "my-secret" }, use it; otherwise generate a random one.
   let provided: string | undefined;
   const raw = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   if (typeof raw.jwt === "string") {
@@ -61,9 +62,9 @@ export async function PUT(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Record<string, string> }
 ) {
-  const companyId = Number(params.id);
+  const companyId = Number(context.params.id);
   if (Number.isNaN(companyId)) {
     return NextResponse.json({ error: "Invalid companyId" }, { status: 400 });
   }
