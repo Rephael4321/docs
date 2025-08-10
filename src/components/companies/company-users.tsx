@@ -161,13 +161,17 @@ export default function CompanyUsers() {
         return;
       }
 
-      // derive proxy base from company.callback_url
-      const entryProxyBase = deriveEntryProxyBase(
-        company?.callback_url ?? null
-      );
+      if (!company) {
+        throw new Error("Company not loaded");
+      }
 
+      // derive proxy base from company.callback_url
+      const entryProxyBase = deriveEntryProxyBase(company.callback_url);
+
+      // First hop is the client's setup page, not the API route:
+      //   <client-origin>/auth/setup?...
       const url =
-        `${entryProxyBase}/api/auth/entry` +
+        `${entryProxyBase}/auth/setup` +
         `?company_id=${enc(companyId)}` +
         `&first_name=${enc(u.first_name)}` +
         `&last_name=${enc(u.last_name)}` +
@@ -182,6 +186,13 @@ export default function CompanyUsers() {
       setBusyUserId(null);
     }
   }
+
+  const disabledCopy =
+    usersLoading ||
+    companyLoading ||
+    !!usersError ||
+    !!companyError ||
+    !company;
 
   return (
     <div className="space-y-8">
@@ -219,7 +230,7 @@ export default function CompanyUsers() {
             />
           </div>
           <div>
-            <label className="block text-sm text-sm font-medium mb-1">
+            <label className="block text-sm font-medium mb-1">
               Phone number
             </label>
             <input
@@ -290,9 +301,9 @@ export default function CompanyUsers() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => onCopyAuthLink(u)}
-                    disabled={busyUserId === u.id}
+                    disabled={busyUserId === u.id || disabledCopy}
                     className="px-3 py-2 rounded border disabled:opacity-60"
-                    title="Copies a universal auth link that works with or without a token"
+                    title="Copies a login link that starts at the client app's one-time setup page"
                   >
                     {busyUserId === u.id ? "Preparing…" : "Copy Auth Link"}
                   </button>
@@ -310,10 +321,10 @@ export default function CompanyUsers() {
       </section>
 
       <p className="text-xs text-gray-500">
-        The link uses the company’s <code>callback_url</code> origin to build
-        the entry endpoint (<code>/api/auth/entry</code>) and includes the
-        user’s identifiers and personal key. You can also append{" "}
-        <code>&token=...</code> later.
+        The link starts at the client’s <code>/auth/setup</code> so users can
+        add a shortcut with the correct icon. On next open it goes directly to{" "}
+        <code>/api/auth/entry</code>, which forwards to the Auth server for
+        verification/refresh and then redirects back to the company callback.
       </p>
     </div>
   );
