@@ -1,4 +1,3 @@
-// src/app/api/companies/[id]/jwt/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import crypto from "crypto";
@@ -32,15 +31,10 @@ export async function PUT(
     return NextResponse.json({ error: "Invalid companyId" }, { status: 400 });
   }
 
-  // If client sends { jwt: "my-secret" }, use it; otherwise generate a random one.
   let provided: string | undefined;
-  try {
-    const body = await req.json().catch(() => ({} as any));
-    if (typeof body?.jwt === "string") {
-      provided = body.jwt.trim();
-    }
-  } catch {
-    // ignore parse errors, fall back to random
+  const raw = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  if (typeof raw.jwt === "string") {
+    provided = raw.jwt.trim();
   }
 
   const newJwt =

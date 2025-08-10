@@ -1,5 +1,4 @@
-// src/app/api/companies/[companyId]/users/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 
 export async function GET(
@@ -22,8 +21,17 @@ export async function GET(
   return NextResponse.json(rows);
 }
 
+function hasCode(err: unknown): err is { code: string } {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    typeof (err as { code?: unknown }).code === "string"
+  );
+}
+
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
   const companyId = Number(params.id);
@@ -31,11 +39,14 @@ export async function POST(
     return NextResponse.json({ error: "Invalid companyId" }, { status: 400 });
   }
 
-  const body = await _req.json().catch(() => ({}));
-  const first_name = String(body?.first_name ?? "").trim();
-  const last_name = String(body?.last_name ?? "").trim();
-  const phone_number = String(body?.phone_number ?? "").trim();
-  const role = String(body?.role ?? "").trim();
+  const raw = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const first_name =
+    typeof raw.first_name === "string" ? raw.first_name.trim() : "";
+  const last_name =
+    typeof raw.last_name === "string" ? raw.last_name.trim() : "";
+  const phone_number =
+    typeof raw.phone_number === "string" ? raw.phone_number.trim() : "";
+  const role = typeof raw.role === "string" ? raw.role.trim() : "";
 
   if (!first_name || !last_name || !phone_number || !role) {
     return NextResponse.json(
@@ -60,8 +71,8 @@ export async function POST(
     );
 
     return NextResponse.json(rows[0], { status: 201 });
-  } catch (err: any) {
-    if (err?.code === "23505") {
+  } catch (err: unknown) {
+    if (hasCode(err) && err.code === "23505") {
       return NextResponse.json(
         { error: "A user with this phone already exists in this company" },
         { status: 409 }

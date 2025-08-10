@@ -23,6 +23,15 @@ function maskToken(token: string) {
   return token.slice(0, 6) + "…" + token.slice(-6);
 }
 
+function getErrorMessage(e: unknown, fallback = "Something went wrong") {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object" && "message" in e) {
+    const m = (e as { message?: unknown }).message;
+    if (typeof m === "string") return m;
+  }
+  return fallback;
+}
+
 export default function CompanyJwt() {
   const { id } = useParams();
   const companyId = String(id);
@@ -45,13 +54,13 @@ export default function CompanyJwt() {
         method: "PUT",
       });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j?.error || `Failed with ${res.status}`);
       }
       setShow(false);
       await mutate();
-    } catch (e: any) {
-      setErr(e.message || "Failed to rotate/create JWT");
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, "Failed to rotate/create JWT"));
     } finally {
       setBusy(false);
     }
@@ -72,14 +81,14 @@ export default function CompanyJwt() {
         body: JSON.stringify({ jwt: value }),
       });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j?.error || `Failed with ${res.status}`);
       }
       setCustom("");
       setShow(false);
       await mutate();
-    } catch (e: any) {
-      setErr(e.message || "Failed to set custom secret");
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, "Failed to set custom secret"));
     } finally {
       setBusy(false);
     }
@@ -94,13 +103,13 @@ export default function CompanyJwt() {
         method: "DELETE",
       });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j?.error || `Failed with ${res.status}`);
       }
       setShow(false);
       await mutate();
-    } catch (e: any) {
-      setErr(e.message || "Failed to delete secret");
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, "Failed to delete secret"));
     } finally {
       setBusy(false);
     }

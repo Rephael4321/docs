@@ -27,6 +27,19 @@ function isAbsoluteHttpUrl(u: string) {
   }
 }
 
+function isAlg(v: string): v is (typeof ALGS)[number] {
+  return (ALGS as readonly string[]).includes(v);
+}
+
+function getErrorMessage(e: unknown, fallback = "Something went wrong") {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object" && "message" in e) {
+    const m = (e as { message?: unknown }).message;
+    if (typeof m === "string") return m;
+  }
+  return fallback;
+}
+
 export default function CompanyDetails() {
   const { id } = useParams();
   const router = useRouter();
@@ -55,7 +68,7 @@ export default function CompanyDetails() {
         setCompany(data);
         setName(data.name || "");
         setCallbackUrl(data.callback_url ?? "");
-        setJwtAlg((data.jwt_alg as any) || "HS256");
+        setJwtAlg(isAlg(data.jwt_alg) ? data.jwt_alg : "HS256");
         setTtl(data.token_ttl_seconds ?? DEFAULT_TTL);
       })
       .catch(() => setError("Failed to load company"))
@@ -95,22 +108,24 @@ export default function CompanyDetails() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: trimmedName,
-          callback_url: trimmedCb || null, // send null to clear
+          callback_url: trimmedCb || null,
           jwt_alg: jwtAlg,
           token_ttl_seconds: ttlNum ?? undefined,
         }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || "Failed to update");
+        throw new Error(
+          (data as { error?: string })?.error || "Failed to update"
+        );
       }
-      const updated = await res.json();
+      const updated: Company = await res.json();
       setCompany(updated);
       setOk("Saved!");
       router.refresh();
       setTimeout(() => setOk(null), 1800);
-    } catch (e: any) {
-      setError(e.message || "Failed to update");
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Failed to update"));
     } finally {
       setSaving(false);
     }
@@ -122,11 +137,13 @@ export default function CompanyDetails() {
       const res = await fetch(`/api/companies/${id}`, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || "Failed to delete");
+        throw new Error(
+          (data as { error?: string })?.error || "Failed to delete"
+        );
       }
       router.push("/companies");
-    } catch (e: any) {
-      setError(e.message || "Delete failed");
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Delete failed"));
     }
   }
 
@@ -175,7 +192,9 @@ export default function CompanyDetails() {
             <select
               className="mt-1 w-full border rounded px-3 py-2"
               value={jwtAlg}
-              onChange={(e) => setJwtAlg(e.target.value as any)}
+              onChange={(e) =>
+                setJwtAlg(e.target.value as (typeof ALGS)[number])
+              }
               disabled={saving}
             >
               {ALGS.map((a) => (

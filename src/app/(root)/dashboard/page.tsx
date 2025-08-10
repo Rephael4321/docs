@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function DashboardPage() {
   return (
     <main className="space-y-6">
@@ -9,14 +11,14 @@ export default function DashboardPage() {
 
       <ul className="list-disc list-inside space-y-2">
         <li>
-          <a href="/companies" className="text-blue-600 hover:underline">
+          <Link href="/companies" className="text-blue-600 hover:underline">
             Manage Companies
-          </a>
+          </Link>
         </li>
         <li>
-          <a href="/users" className="text-blue-600 hover:underline">
+          <Link href="/users" className="text-blue-600 hover:underline">
             View All Users
-          </a>
+          </Link>
         </li>
       </ul>
     </main>

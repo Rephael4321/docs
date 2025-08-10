@@ -1,4 +1,3 @@
-// app/api/auth/entry/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import jwt from "jsonwebtoken";
@@ -21,7 +20,6 @@ type UserRow = {
   last_name: string;
   phone_number: string;
   role: string;
-  // no is_active column in DB; we synthesize it as true
   is_active?: boolean;
 };
 
@@ -236,7 +234,11 @@ export async function GET(req: NextRequest) {
 
     const redirectTo = buildRedirect(company.callback_url, token);
     return NextResponse.redirect(redirectTo);
-  } catch (e: any) {
-    return jsonError(e?.message || "Server error", 500);
+  } catch (e: unknown) {
+    let message = "Server error";
+    if (e instanceof Error) {
+      message = e.message;
+    }
+    return jsonError(message, 500);
   }
 }

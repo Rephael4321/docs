@@ -16,7 +16,12 @@ function isAbsoluteHttpUrl(u: unknown) {
   }
 }
 
-const ALGS = new Set(["HS256", "HS384", "HS512"]);
+// Allowed JWT alg values + type guard
+const ALG_VALUES = ["HS256", "HS384", "HS512"] as const;
+type Alg = (typeof ALG_VALUES)[number];
+function isAlg(v: unknown): v is Alg {
+  return typeof v === "string" && (ALG_VALUES as readonly string[]).includes(v);
+}
 
 export async function GET(
   _req: NextRequest,
@@ -40,6 +45,15 @@ export async function GET(
   return NextResponse.json(rows[0]);
 }
 
+function hasCode(err: unknown): err is { code: string } {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    typeof (err as { code?: unknown }).code === "string"
+  );
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -49,18 +63,12 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
   }
 
-  const body = await req.json().catch(() => ({} as any));
+  const raw = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
-  const hasName = Object.prototype.hasOwnProperty.call(body, "name");
-  const hasCallback = Object.prototype.hasOwnProperty.call(
-    body,
-    "callback_url"
-  );
-  const hasAlg = Object.prototype.hasOwnProperty.call(body, "jwt_alg");
-  const hasTtl = Object.prototype.hasOwnProperty.call(
-    body,
-    "token_ttl_seconds"
-  );
+  const hasName = Object.prototype.hasOwnProperty.call(raw, "name");
+  const hasCallback = Object.prototype.hasOwnProperty.call(raw, "callback_url");
+  const hasAlg = Object.prototype.hasOwnProperty.call(raw, "jwt_alg");
+  const hasTtl = Object.prototype.hasOwnProperty.call(raw, "token_ttl_seconds");
 
   if (!hasName && !hasCallback && !hasAlg && !hasTtl) {
     return NextResponse.json(
@@ -69,26 +77,39 @@ export async function PATCH(
     );
   }
 
-  // Validate
+  // Validate + normalize into typed locals
+  let nameVal: string | undefined;
   if (hasName) {
-    if (typeof body.name !== "string" || !body.name.trim()) {
+    if (typeof raw.name !== "string" || !raw.name.trim()) {
       return NextResponse.json(
         { error: "Company name is required" },
         { status: 400 }
       );
     }
-    if (body.name.trim().length > 200) {
+    if (raw.name.trim().length > 200) {
       return NextResponse.json(
         { error: "Company name is too long (max 200 chars)" },
         { status: 400 }
       );
     }
+    nameVal = raw.name.trim();
   }
 
+  let callbackVal: string | null | undefined;
   if (hasCallback) {
-    // allow "", treat as null (clear)
-    if (body.callback_url === "") body.callback_url = null;
-    if (!isAbsoluteHttpUrl(body.callback_url)) {
+    if (raw.callback_url === "") {
+      callbackVal = null; // clear
+    } else if (raw.callback_url === null) {
+      callbackVal = null;
+    } else if (typeof raw.callback_url === "string") {
+      callbackVal = raw.callback_url.trim();
+    } else {
+      return NextResponse.json(
+        { error: "callback_url must be an absolute http(s) URL or null" },
+        { status: 400 }
+      );
+    }
+    if (!isAbsoluteHttpUrl(callbackVal)) {
       return NextResponse.json(
         { error: "callback_url must be an absolute http(s) URL or null" },
         { status: 400 }
@@ -96,49 +117,44 @@ export async function PATCH(
     }
   }
 
-  if (hasAlg) {
-    // jwt_alg is NOT NULL in DB; disallow null and validate value
-    if (body.jwt_alg == null || !ALGS.has(String(body.jwt_alg))) {
-      return NextResponse.json(
-        { error: "jwt_alg must be HS256, HS384, or HS512" },
-        { status: 400 }
-      );
-    }
-  }
-
+  let ttlVal: number | undefined;
   if (hasTtl) {
-    // token_ttl_seconds is NOT NULL in DB; disallow null and ensure positive
-    const ttl = Number(body.token_ttl_seconds);
+    const ttl = Number(raw.token_ttl_seconds);
     if (!Number.isFinite(ttl) || ttl <= 0) {
       return NextResponse.json(
         { error: "token_ttl_seconds must be a positive number" },
         { status: 400 }
       );
     }
+    ttlVal = ttl;
   }
 
   // Dynamic UPDATE
   const sets: string[] = [];
-  const vals: any[] = [];
+  const vals: (string | number | null)[] = [];
   let i = 1;
 
   if (hasName) {
     sets.push(`name = $${i++}`);
-    vals.push(String(body.name).trim());
+    vals.push(nameVal!);
   }
   if (hasCallback) {
     sets.push(`callback_url = $${i++}`);
-    vals.push(
-      body.callback_url === null ? null : String(body.callback_url).trim()
-    );
+    vals.push(callbackVal === null ? null : callbackVal ?? null);
   }
   if (hasAlg) {
+    if (!isAlg(raw.jwt_alg)) {
+      return NextResponse.json(
+        { error: "jwt_alg must be HS256, HS384, or HS512" },
+        { status: 400 }
+      );
+    }
     sets.push(`jwt_alg = $${i++}`);
-    vals.push(String(body.jwt_alg));
+    vals.push(raw.jwt_alg); // Alg is a string, fits vals' type
   }
   if (hasTtl) {
     sets.push(`token_ttl_seconds = $${i++}`);
-    vals.push(Number(body.token_ttl_seconds));
+    vals.push(ttlVal!);
   }
 
   sets.push(`updated_at = NOW()`);
@@ -159,8 +175,8 @@ export async function PATCH(
     }
 
     return NextResponse.json(rows[0]);
-  } catch (err: any) {
-    if (err?.code === "23505") {
+  } catch (err: unknown) {
+    if (hasCode(err) && err.code === "23505") {
       return NextResponse.json(
         { error: "Company name already exists" },
         { status: 409 }

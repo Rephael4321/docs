@@ -6,7 +6,7 @@ import { useState } from "react";
 
 type TokenRow = {
   id: number;
-  token: string; // plaintext for demo; consider storing only a hash in prod
+  token: string;
   created_at: string;
   updated_at: string;
 };
@@ -23,13 +23,24 @@ function mask(t: string) {
   return t.slice(0, 6) + "…" + t.slice(-6);
 }
 
+function getErrorMessage(e: unknown, fallback = "Something went wrong") {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object" && "message" in e) {
+    const m = (e as { message?: unknown }).message;
+    if (typeof m === "string") return m;
+  }
+  return fallback;
+}
+
 export default function UserTokens() {
   const { id } = useParams();
   const userId = String(id);
+
   const { data, error, isLoading, mutate } = useSWR<TokenRow[]>(
     `/api/users/${userId}/tokens`,
     fetcher
   );
+
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showMap, setShowMap] = useState<Record<number, boolean>>({});
@@ -42,12 +53,12 @@ export default function UserTokens() {
         method: "POST",
       });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j?.error || `Failed with ${res.status}`);
       }
       await mutate();
-    } catch (e: any) {
-      setErr(e.message || "Failed to create token");
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, "Failed to create token"));
     } finally {
       setBusy(false);
     }
@@ -59,12 +70,12 @@ export default function UserTokens() {
     try {
       const res = await fetch(`/api/tokens/${tokenId}`, { method: "DELETE" });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j?.error || `Failed with ${res.status}`);
       }
       await mutate();
-    } catch (e: any) {
-      setErr(e.message || "Failed to delete token");
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, "Failed to delete token"));
     }
   }
 

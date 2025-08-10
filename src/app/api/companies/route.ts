@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 
-const ALGS = new Set(["HS256", "HS384", "HS512"]);
+const ALG_VALUES = ["HS256", "HS384", "HS512"] as const;
+type Alg = (typeof ALG_VALUES)[number];
 
 function isAbsoluteUrl(u: unknown) {
-  if (u == null || u === "") return true; // treat empty/omitted as ok
+  if (u == null || u === "") return true;
   if (typeof u !== "string") return false;
   try {
     const url = new URL(u);
@@ -12,6 +13,10 @@ function isAbsoluteUrl(u: unknown) {
   } catch {
     return false;
   }
+}
+
+function isAlg(v: unknown): v is Alg {
+  return typeof v === "string" && (ALG_VALUES as readonly string[]).includes(v);
 }
 
 export async function GET() {
@@ -23,12 +28,20 @@ export async function GET() {
   return NextResponse.json(rows);
 }
 
+function hasCode(err: unknown): err is { code: string } {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    typeof (err as { code?: unknown }).code === "string"
+  );
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({} as any));
+    const raw = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
-    // name
-    const name = String(body?.name ?? "").trim();
+    const name = typeof raw.name === "string" ? raw.name.trim() : "";
     if (!name) {
       return NextResponse.json(
         { error: "Company name is required" },
@@ -42,8 +55,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // callback_url (optional)
-    const callback_url = body?.callback_url ?? null;
+    const callback_url =
+      typeof raw.callback_url === "string" ? raw.callback_url : null;
     if (!isAbsoluteUrl(callback_url)) {
       return NextResponse.json(
         {
@@ -54,20 +67,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // jwt_alg (optional; defaults to DB default HS256)
-    const jwt_alg = body?.jwt_alg ?? null;
-    if (jwt_alg != null && !ALGS.has(String(jwt_alg))) {
+    const jwt_alg = isAlg(raw.jwt_alg) ? raw.jwt_alg : null;
+    if (raw.jwt_alg != null && jwt_alg === null) {
       return NextResponse.json(
         { error: "jwt_alg must be HS256, HS384, or HS512" },
         { status: 400 }
       );
     }
 
-    // token_ttl_seconds (optional; defaults to DB default 1209600)
-    const token_ttl_seconds = body?.token_ttl_seconds ?? null;
-    if (token_ttl_seconds != null) {
-      const ttl = Number(token_ttl_seconds);
-      if (!Number.isFinite(ttl) || ttl <= 0) {
+    const token_ttl_seconds =
+      raw.token_ttl_seconds == null
+        ? null
+        : Number(raw.token_ttl_seconds as unknown);
+    if (token_ttl_seconds !== null) {
+      if (!Number.isFinite(token_ttl_seconds) || token_ttl_seconds <= 0) {
         return NextResponse.json(
           { error: "token_ttl_seconds must be a positive number" },
           { status: 400 }
@@ -75,10 +88,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Build INSERT with only provided optional fields (so DB defaults still apply)
-    const cols = ["name"];
-    const vals: any[] = [name];
-    const params = ["$1"];
+    const cols: string[] = ["name"];
+    const vals: (string | number)[] = [name];
+    const params: string[] = ["$1"];
     let i = 2;
 
     if (callback_url !== null && callback_url !== "") {
@@ -93,7 +105,7 @@ export async function POST(req: NextRequest) {
     }
     if (token_ttl_seconds !== null) {
       cols.push("token_ttl_seconds");
-      vals.push(Number(token_ttl_seconds));
+      vals.push(token_ttl_seconds);
       params.push(`$${i++}`);
     }
 
@@ -105,8 +117,8 @@ export async function POST(req: NextRequest) {
     );
 
     return NextResponse.json(rows[0], { status: 201 });
-  } catch (err: any) {
-    if (err?.code === "23505") {
+  } catch (err: unknown) {
+    if (hasCode(err) && err.code === "23505") {
       return NextResponse.json(
         { error: "Company name already exists" },
         { status: 409 }

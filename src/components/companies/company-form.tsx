@@ -2,9 +2,10 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const ALGS = ["HS256", "HS384", "HS512"] as const;
-const DEFAULT_TTL = 1209600; // 14 days
+const DEFAULT_TTL = 1209600;
 
 function isAbsoluteHttpUrl(u: string) {
   try {
@@ -17,12 +18,21 @@ function isAbsoluteHttpUrl(u: string) {
   }
 }
 
+function getErrorMessage(e: unknown, fallback = "Something went wrong") {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object" && "message" in e) {
+    const m = (e as { message?: unknown }).message;
+    if (typeof m === "string") return m;
+  }
+  return fallback;
+}
+
 export default function CompanyForm() {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [callbackUrl, setCallbackUrl] = useState(""); // optional
-  const [jwtAlg, setJwtAlg] = useState<(typeof ALGS)[number]>("HS256"); // optional
-  const [ttl, setTtl] = useState<number | "">(DEFAULT_TTL); // optional
+  const [callbackUrl, setCallbackUrl] = useState("");
+  const [jwtAlg, setJwtAlg] = useState<(typeof ALGS)[number]>("HS256");
+  const [ttl, setTtl] = useState<number | "">(DEFAULT_TTL);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -54,8 +64,14 @@ export default function CompanyForm() {
       return;
     }
 
-    // Build payload: only include optional fields when set so DB defaults still apply
-    const payload: Record<string, any> = { name: trimmedName };
+    // Build payload with explicit typing instead of any
+    const payload: {
+      name: string;
+      callback_url?: string;
+      jwt_alg?: (typeof ALGS)[number];
+      token_ttl_seconds?: number;
+    } = { name: trimmedName };
+
     if (trimmedCb) payload.callback_url = trimmedCb;
     if (jwtAlg) payload.jwt_alg = jwtAlg;
     if (ttlNum !== undefined && ttlNum !== DEFAULT_TTL) {
@@ -71,14 +87,16 @@ export default function CompanyForm() {
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
         throw new Error(data?.error || `Failed with ${res.status}`);
       }
 
       router.push("/companies");
       router.refresh();
-    } catch (e: any) {
-      setErr(e.message || "Failed to create company");
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, "Failed to create company"));
     } finally {
       setLoading(false);
     }
@@ -203,9 +221,9 @@ export default function CompanyForm() {
         </div>
       </form>
 
-      <a href="/companies" className="text-sm text-blue-600 hover:underline">
+      <Link href="/companies" className="text-sm text-blue-600 hover:underline">
         ← Back to companies
-      </a>
+      </Link>
     </div>
   );
 }

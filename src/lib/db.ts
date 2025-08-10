@@ -20,19 +20,31 @@ if (process.env.NODE_ENV !== "production") {
   globalForPool.__pgPool = pool;
 }
 
-// Generic query helper
+export async function query<T extends QueryResultRow = QueryResultRow>(
+  text: string
+): Promise<T[]>;
 export async function query<T extends QueryResultRow = QueryResultRow>(
   text: string,
-  params?: any[]
+  params: unknown[]
+): Promise<T[]>;
+export async function query<T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params?: unknown[]
 ): Promise<T[]> {
   const res = await pool.query<T>(text, params);
   return res.rows;
 }
 
-// (optional) one-row helper
+export async function queryOne<T extends QueryResultRow = QueryResultRow>(
+  text: string
+): Promise<T | null>;
 export async function queryOne<T extends QueryResultRow = QueryResultRow>(
   text: string,
-  params?: any[]
+  params: unknown[]
+): Promise<T | null>;
+export async function queryOne<T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params?: unknown[]
 ): Promise<T | null> {
   const res = await pool.query<T>(text, params);
   return res.rows[0] ?? null;

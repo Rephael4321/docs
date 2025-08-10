@@ -6,7 +6,7 @@ import useSWR from "swr";
 
 type KeyRow = {
   id: number;
-  key_value: string; // matches DB column in verification_keys
+  key_value: string;
   created_at: string;
   updated_at: string;
 };
@@ -21,6 +21,15 @@ function maskKey(k: string) {
   if (!k) return "";
   if (k.length <= 12) return "********";
   return k.slice(0, 6) + "…" + k.slice(-6);
+}
+
+function getErrorMessage(e: unknown, fallback = "Something went wrong") {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object" && "message" in e) {
+    const m = (e as { message?: unknown }).message;
+    if (typeof m === "string") return m;
+  }
+  return fallback;
 }
 
 export default function UserKey() {
@@ -47,13 +56,13 @@ export default function UserKey() {
     try {
       const res = await fetch(`/api/users/${userId}/key`, { method: "PUT" });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j?.error || `Failed with ${res.status}`);
       }
       setShow(false);
       await mutate();
-    } catch (e: any) {
-      setErr(e.message || "Failed to create/rotate key");
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, "Failed to create/rotate key"));
     } finally {
       setBusy(false);
     }
@@ -68,10 +77,10 @@ export default function UserKey() {
       const res = await fetch(`/api/users/${userId}/key`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key_value: trimmed }), // <-- adjust if your API uses another field name
+        body: JSON.stringify({ key_value: trimmed }),
       });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j?.error || `Failed with ${res.status}`);
       }
       setEditingCustom(false);
@@ -79,8 +88,8 @@ export default function UserKey() {
       setCustomShow(false);
       setShow(false);
       await mutate();
-    } catch (e: any) {
-      setErr(e.message || "Failed to set custom key");
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, "Failed to set custom key"));
     } finally {
       setBusy(false);
     }
@@ -93,13 +102,13 @@ export default function UserKey() {
     try {
       const res = await fetch(`/api/users/${userId}/key`, { method: "DELETE" });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j?.error || `Failed with ${res.status}`);
       }
       setShow(false);
       await mutate();
-    } catch (e: any) {
-      setErr(e.message || "Failed to delete key");
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, "Failed to delete key"));
     } finally {
       setBusy(false);
     }

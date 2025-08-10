@@ -31,12 +31,20 @@ function enc(v: string | number) {
 }
 
 function getAppOrigin() {
-  // If you set NEXT_PUBLIC_APP_ORIGIN in env, prefer it
   if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_APP_ORIGIN) {
     return process.env.NEXT_PUBLIC_APP_ORIGIN!;
   }
   if (typeof window !== "undefined") return window.location.origin;
-  return ""; // server fallback (relative URL still copies fine in browser)
+  return "";
+}
+
+function getErrorMessage(e: unknown, fallback = "Something went wrong") {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object" && "message" in e) {
+    const m = (e as { message?: unknown }).message;
+    if (typeof m === "string") return m;
+  }
+  return fallback;
 }
 
 export default function CompanyUsers() {
@@ -48,7 +56,6 @@ export default function CompanyUsers() {
     fetcher
   );
 
-  // new user form state
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
@@ -56,7 +63,6 @@ export default function CompanyUsers() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // per-user action state
   const [busyUserId, setBusyUserId] = useState<number | null>(null);
 
   async function onCreate(e: FormEvent<HTMLFormElement>) {
@@ -88,7 +94,7 @@ export default function CompanyUsers() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j?.error || `Failed with ${res.status}`);
       }
       setFirstName("");
@@ -96,8 +102,8 @@ export default function CompanyUsers() {
       setPhone("");
       setRole("member");
       mutate();
-    } catch (e: any) {
-      setErr(e.message || "Failed to create user");
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, "Failed to create user"));
     } finally {
       setBusy(false);
     }
@@ -108,12 +114,12 @@ export default function CompanyUsers() {
     try {
       const res = await fetch(`/api/users/${userId}`, { method: "DELETE" });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j?.error || `Failed with ${res.status}`);
       }
       mutate();
-    } catch (e: any) {
-      alert(e.message || "Delete failed");
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, "Delete failed"));
     }
   }
 
@@ -121,7 +127,6 @@ export default function CompanyUsers() {
     try {
       setBusyUserId(u.id);
 
-      // fetch user key (raw) – you already show/set it elsewhere
       const res = await fetch(`/api/users/${u.id}/key`);
       if (!res.ok) {
         throw new Error("Failed to fetch user key");
@@ -145,8 +150,8 @@ export default function CompanyUsers() {
 
       await navigator.clipboard.writeText(url);
       alert("Auth link copied to clipboard");
-    } catch (e: any) {
-      alert(e.message || "Failed to prepare auth link");
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, "Failed to prepare auth link"));
     } finally {
       setBusyUserId(null);
     }
