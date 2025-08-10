@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import crypto from "crypto";
 
@@ -7,7 +7,7 @@ function generateRandomToken(length = 48) {
 }
 
 export async function GET(
-  _req: Request,
+  _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const companyId = Number(params.id);
@@ -23,7 +23,7 @@ export async function GET(
 }
 
 export async function PUT(
-  req: Request,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const companyId = Number(params.id);
@@ -61,7 +61,7 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _req: Request,
+  _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const companyId = Number(params.id);
