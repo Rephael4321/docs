@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import crypto from "crypto";
 
@@ -7,10 +7,10 @@ function generateRandomToken(length = 48) {
 }
 
 export async function GET(
-  _req: NextRequest,
-  context: { params: Record<string, string> }
+  _req: Request,
+  { params }: { params: { id: string } }
 ) {
-  const companyId = Number(context.params.id);
+  const companyId = Number(params.id);
   if (Number.isNaN(companyId)) {
     return NextResponse.json({ error: "Invalid companyId" }, { status: 400 });
   }
@@ -23,10 +23,10 @@ export async function GET(
 }
 
 export async function PUT(
-  req: NextRequest,
-  context: { params: Record<string, string> }
+  req: Request,
+  { params }: { params: { id: string } }
 ) {
-  const companyId = Number(context.params.id);
+  const companyId = Number(params.id);
   if (Number.isNaN(companyId)) {
     return NextResponse.json({ error: "Invalid companyId" }, { status: 400 });
   }
@@ -41,7 +41,6 @@ export async function PUT(
   const newJwt =
     provided && provided.length > 0 ? provided : generateRandomToken();
 
-  // (Optional) add basic size guard
   if (newJwt.length > 8192) {
     return NextResponse.json({ error: "Secret too large" }, { status: 400 });
   }
@@ -61,10 +60,10 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _req: NextRequest,
-  context: { params: Record<string, string> }
+  _req: Request,
+  { params }: { params: { id: string } }
 ) {
-  const companyId = Number(context.params.id);
+  const companyId = Number(params.id);
   if (Number.isNaN(companyId)) {
     return NextResponse.json({ error: "Invalid companyId" }, { status: 400 });
   }
