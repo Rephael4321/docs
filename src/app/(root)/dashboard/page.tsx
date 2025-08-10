@@ -1,18 +1,13 @@
-export default function AdminHome() {
+export default function DashboardPage() {
   return (
     <main className="space-y-6">
-      <h1 className="text-2xl font-semibold">Welcome to the Admin CMS</h1>
+      <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
       <p className="text-gray-600">
-        Use the sections below to manage companies, users, and related
-        resources.
+        Quick links to manage companies, users, JWTs, verification keys, and
+        tokens.
       </p>
 
       <ul className="list-disc list-inside space-y-2">
-        <li>
-          <a href="/dashboard" className="text-blue-600 hover:underline">
-            Dashboard Overview
-          </a>
-        </li>
         <li>
           <a href="/companies" className="text-blue-600 hover:underline">
             Manage Companies
@@ -20,7 +15,7 @@ export default function AdminHome() {
         </li>
         <li>
           <a href="/users" className="text-blue-600 hover:underline">
-            Manage Users
+            View All Users
           </a>
         </li>
       </ul>
